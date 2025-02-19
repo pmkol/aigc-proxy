@@ -1,0 +1,54 @@
+name: Release Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+          check-latest: true
+
+      - name: Install UPX
+        run: sudo apt-get install -y upx-ucl
+
+      - name: Build for AMD64
+        run: |
+          go env -w CGO_ENABLED=0 GOOS=linux GOARCH=amd64
+          go build -o aigc-proxy-amd64 -v -trimpath -ldflags "-s -w -buildid=" main.go
+          upx -9 aigc-proxy-amd64
+
+      - name: Build for ARM64
+        run: |
+          go env -w CGO_ENABLED=0 GOOS=linux GOARCH=arm64
+          go build -o aigc-proxy-arm64 -v -trimpath -ldflags "-s -w -buildid=" main.go
+          upx -9 aigc-proxy-arm64
+
+      - name: Delete current release assets
+        uses: andreaswilli/delete-release-assets-action@v3.0.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag: latest
+          deleteOnlyFromDrafts: false
+
+      - name: Create and Upload Release
+        id: upload_release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          release_name: aigc-proxy
+          tag: latest
+          body: |
+            Latest build of aigc-proxy.
+          file_glob: true
+          overwrite: true
+          file: |
+            ./aigc-proxy-*
